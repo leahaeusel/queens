@@ -101,9 +101,19 @@ class ExperimentalDataReader:
             time_vec = np.sort(list(set(experimental_data_dict[self.time_label])))
 
         # get the experimental outputs
-        y_obs_vec = np.array(experimental_data_dict[self.output_label]).reshape(
-            -1,
-        )
+        if isinstance(self.output_label, str):
+            y_obs_vec = np.array(experimental_data_dict[self.output_label]).reshape(
+                -1,
+            )
+        else:
+            y_obs_vec = []
+            for label in self.output_label:
+                y_obs_vec.append(
+                    np.array(experimental_data_dict[label]).reshape(
+                        -1,
+                    )
+                )
+            y_obs_vec = np.array(y_obs_vec).T
 
         return (
             y_obs_vec,
