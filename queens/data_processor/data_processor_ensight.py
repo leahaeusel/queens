@@ -412,14 +412,22 @@ class DataProcessorEnsight(DataProcessor):
 
         # Return the fields as numpy array
         if vtk_array_type == "point_array":
-            field = vtk_to_numpy(
-                probe_filter_obj.GetOutput().GetPointData().GetArray(vtk_field_label)
-            )
+            point_data = probe_filter_obj.GetOutput().GetPointData()
+            if not point_data.HasArray(vtk_field_label):
+                raise ValueError(
+                    f"The provided data does not have an array with the VTK field label "
+                    f"'{vtk_field_label}'"
+                )
+            field = vtk_to_numpy(point_data.GetArray(vtk_field_label))
 
         elif vtk_array_type == "cell_array":
-            field = vtk_to_numpy(
-                probe_filter_obj.GetOutput().GetCellData().GetArray(vtk_field_label)
-            )
+            cell_data = probe_filter_obj.GetOutput().GetCellData()
+            if not cell_data.HasArray(vtk_field_label):
+                raise ValueError(
+                    f"The provided data does not have an array with the VTK field label "
+                    f"'{vtk_field_label}'"
+                )
+            field = vtk_to_numpy(cell_data.GetArray(vtk_field_label))
 
         else:
             raise ValueError(
