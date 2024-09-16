@@ -128,7 +128,7 @@ class GaussianLikelihood(LikelihoodModel):
             self.update_covariance(self.response["result"])
         log_likelihood = self.normal_distribution.logpdf(self.response["result"])
 
-        return {"result": log_likelihood}
+        return {"result": log_likelihood, "result_forward_model": self.response["result"]}
 
     def grad(self, samples, upstream_gradient):
         r"""Evaluate gradient of model w.r.t. current set of input samples.
