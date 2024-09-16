@@ -106,9 +106,10 @@ class JobscriptDriver(Driver):
             jobscript_file_name (str): Jobscript file name (default: 'jobscript.sh')
             extra_options (dict): Extra options to inject into jobscript template
         """
-        super().__init__(parameters=parameters, files_to_copy=files_to_copy)
-        self.input_templates = self.create_input_templates_dict(input_templates)
-        self.files_to_copy.extend(self.input_templates.values())
+        super().__init__(files_to_copy=files_to_copy)
+        if input_template is not None:
+            self.files_to_copy.append(input_template)
+            self.input_template = Path(input_template)
         self.data_processor = data_processor
         self.gradient_data_processor = gradient_data_processor
 

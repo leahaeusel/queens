@@ -227,5 +227,6 @@ class ClusterScheduler(DaskScheduler):
             paths (Path, list): paths to files or directories that should be copied to experiment
                                 directory
         """
-        destination = f"{self.experiment_dir}/"
-        self.remote_connection.copy_to_remote(paths, destination)
+        if len(paths) > 0:
+            destination = f"{self.experiment_dir}/"
+            self.remote_connection.copy_to_remote(paths, destination)
