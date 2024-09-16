@@ -108,7 +108,7 @@ class NormalDistribution(ContinuousDistribution):
         Returns:
             logpdf (np.ndarray): log pdf at evaluated positions
         """
-        dist = x.reshape(-1, self.dimension) - self.mean
+        dist = x.reshape(-1, self.dimension, order="F") - self.mean
         logpdf = self.logpdf_const - 0.5 * (np.dot(dist, self.precision) * dist).sum(axis=1)
         return logpdf
 
