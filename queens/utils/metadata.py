@@ -27,7 +27,7 @@ from queens.utils.config_directories import job_dirs_in_experiment_dir
 from queens.utils.io_utils import to_dict_with_standard_types
 from queens.utils.print_utils import get_str_table
 
-METADATA_FILENAME = "metadata"
+DEFAULT_METADATA_FILENAME = "metadata"
 METADATA_FILETYPE = ".yaml"
 
 
@@ -45,18 +45,19 @@ class SimulationMetadata:
         times (dict): Wall times of code sections
     """
 
-    def __init__(self, job_id, inputs, job_dir):
+    def __init__(self, job_id, inputs, job_dir, metadata_filename=DEFAULT_METADATA_FILENAME):
         """Init simulation metadata object.
 
         Args:
             job_id (int): Id of the job
             inputs (dict): Parameters for this job
             job_dir (pathlib.Path): Directory in which to write the metadata
+            metadata_filename (str, opt): Name of the metadata file
         """
         self.job_id = job_id
         self.timestamp = None
         self.inputs = inputs
-        self.file_path = (Path(job_dir) / METADATA_FILENAME).with_suffix(METADATA_FILETYPE)
+        self.file_path = (Path(job_dir) / metadata_filename).with_suffix(METADATA_FILETYPE)
         self.outputs = None
         self.times = {}
         self._create_timestamp()
@@ -128,20 +129,35 @@ class SimulationMetadata:
         return get_str_table("Simulation Metadata", self.to_dict())
 
 
-def get_metadata_from_experiment_dir(experiment_dir):
+def get_metadata_from_job_dir(job_dir, metadata_filename=DEFAULT_METADATA_FILENAME):
+    """Get metadata from a job directory.
+
+    Args:
+        job_dir (pathlib.Path): Job directory
+        metadata_filename (str, opt): Name of the metadata file
+
+    Returns:
+        metadata (dict): metadata of a job
+    """
+    metadata_path = (job_dir / metadata_filename).with_suffix(METADATA_FILETYPE)
+    metadata = yaml.safe_load(metadata_path.read_text())
+    return metadata
+
+
+def get_metadata_from_experiment_dir(experiment_dir, metadata_filename=DEFAULT_METADATA_FILENAME):
     """Get metadata from experiment_dir.
 
     To keep memory usage limited, this is implemented as a generator.
 
     Args:
         experiment_dir (pathlib.Path, str): Path with the job dirs
+        metadata_filename (str, opt): Name of the metadata file
 
     Yields:
         metadata (dict): metadata of a job
     """
     for job_dir in job_dirs_in_experiment_dir(experiment_dir):
-        metadata_path = (job_dir / METADATA_FILENAME).with_suffix(METADATA_FILETYPE)
-        yield yaml.safe_load(metadata_path.read_text())
+        yield get_metadata_from_job_dir(job_dir, metadata_filename)
 
 
 def write_metadata_to_csv(experiment_dir, csv_path=None):
