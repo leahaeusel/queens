@@ -70,7 +70,7 @@ class RecycleDriver(JobscriptDriver):
                 f"equal for job ID {job_id}"
             )
 
-        new_metadata_filename = self._new_metadata_filename()
+        new_metadata_filename = self._new_metadata_filename(job_dir)
         metadata = SimulationMetadata(
             job_id=job_id, inputs=inputs, job_dir=job_dir, metadata_filename=new_metadata_filename
         )
@@ -81,7 +81,7 @@ class RecycleDriver(JobscriptDriver):
 
         return results
 
-    def _new_metadata_filename(self):
+    def _new_metadata_filename(self, job_dir):
         """Find the next metadata file name.
 
         This is to avoid overwriting of already existing metadata files
@@ -91,7 +91,8 @@ class RecycleDriver(JobscriptDriver):
         """
         recycle_run = 1
         metadata_filename = self.metadata_filename(recycle_run)
-        while os.path.exists(metadata_filename):
+
+        while os.path.isfile(job_dir / (metadata_filename + ".yaml")):
             recycle_run += 1
             metadata_filename = self.metadata_filename(recycle_run)
 

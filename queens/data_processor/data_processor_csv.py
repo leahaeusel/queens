@@ -286,7 +286,7 @@ class DataProcessorCsv(DataProcessor):
         )
         processed_data = filter_method(raw_data)
         filter_formats_dict = {
-            "numpy": processed_data.to_numpy(),
+            "numpy": processed_data.to_numpy().squeeze(),
             "dict": processed_data.to_dict("list"),
         }
 

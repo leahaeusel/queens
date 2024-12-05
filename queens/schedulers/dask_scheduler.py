@@ -136,11 +136,15 @@ class DaskScheduler(Scheduler):
 
         result_dict = {"result": [], "gradient": []}
         for result in results.values():
-            # We should remove this squeeze! It is only introduced for consistency with old test.
-            result_dict["result"].append(np.atleast_1d(np.array(result[0]).squeeze()))
+            result_dict["result"].append(result[0])
             result_dict["gradient"].append(result[1])
-        result_dict["result"] = np.array(result_dict["result"])
-        result_dict["gradient"] = np.array(result_dict["gradient"])
+
+        try:
+            result_dict["result"] = np.array(result_dict["result"])
+            result_dict["gradient"] = np.array(result_dict["gradient"])
+        except:
+            result_dict["result"] = np.array(result_dict["result"], dtype=object)
+            result_dict["gradient"] = np.array(result_dict["gradient"], dtype=object)
         return result_dict
 
     @abc.abstractmethod

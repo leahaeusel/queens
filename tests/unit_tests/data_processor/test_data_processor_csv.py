@@ -291,7 +291,7 @@ def test_filter_entire_file(default_data_processor, default_raw_data):
 
     expected_data = np.array(
         [0.64879, 1.15097, 1.54266, 1.86050, 2.12885, 2.36284, 2.57195, 2.76238, 2.93828, 3.10256]
-    ).reshape((10, 1))
+    )
 
     np.testing.assert_allclose(expected_data, processed_data)
 
@@ -305,7 +305,7 @@ def test_filter_by_range(default_data_processor, default_raw_data):
 
     processed_data = default_data_processor.filter_and_manipulate_raw_data(default_raw_data)
 
-    expected_data = np.array([1.54266, 1.86050, 2.12885, 2.36284]).reshape((4, 1))
+    expected_data = np.array([1.54266, 1.86050, 2.12885, 2.36284])
 
     np.testing.assert_allclose(expected_data, processed_data)
 
@@ -319,7 +319,7 @@ def test_filter_by_target_values(default_data_processor, default_raw_data):
 
     processed_data = default_data_processor.filter_and_manipulate_raw_data(default_raw_data)
 
-    expected_data = np.array([1.54266, 2.12885, 2.93828]).reshape((3, 1))
+    expected_data = np.array([1.54266, 2.12885, 2.93828])
 
     np.testing.assert_allclose(expected_data, processed_data)
 
@@ -332,7 +332,7 @@ def test_filter_by_row_index(default_data_processor, default_raw_data):
 
     processed_data = default_data_processor.filter_and_manipulate_raw_data(default_raw_data)
 
-    expected_data = np.array([0.64879, 2.36284, 2.93828]).reshape((3, 1))
+    expected_data = np.array([0.64879, 2.36284, 2.93828])
     np.testing.assert_allclose(expected_data, processed_data)
 
 

@@ -1,5 +1,7 @@
 """Unit tests for the recycle driver."""
 
+import os
+
 import numpy as np
 import pytest
 
@@ -68,6 +70,20 @@ def fixture_dummy_data_file():
     return "dummy_data.npy"
 
 
+@pytest.fixture(name="data_processor")
+def fixture_data_processor(dummy_data_file):
+    return DataProcessorNumpy(dummy_data_file, file_options_dict={})
+
+
+@pytest.fixture(name="recycle_driver")
+def fixture_recycle_driver(parameters, data_processor):
+    recycle_driver = RecycleDriver(
+        parameters=parameters,
+        data_processor=data_processor,
+    )
+    return recycle_driver
+
+
 @pytest.fixture(name="_write_dummy_job_output")
 def fixture_write_dummy_job_output(
     parameters, sample, job_id, num_procs, tmp_path, experiment_name, dummy_data, dummy_data_file
@@ -93,9 +109,8 @@ def fixture_write_dummy_job_output(
         np.save(f, dummy_data)
 
 
-def test_recycle_driver_run_same_input_parameters(
-    dummy_data_file,
-    parameters,
+def test_recycle_driver_same_input_parameters(
+    recycle_driver,
     sample,
     job_id,
     num_procs,
@@ -109,13 +124,7 @@ def test_recycle_driver_run_same_input_parameters(
     This test uses the same input sample for the recycle driver run as
     for the previous jobscript driver run.
     """
-    data_processor = DataProcessorNumpy(dummy_data_file, file_options_dict={})
-    driver = RecycleDriver(
-        parameters=parameters,
-        data_processor=data_processor,
-    )
-
-    results = driver.run(sample, job_id, num_procs, tmp_path, experiment_name)
+    results = recycle_driver.run(sample, job_id, num_procs, tmp_path, experiment_name)
 
     job_dir = tmp_path / str(job_id)
     original_metadata = get_metadata_from_job_dir(job_dir)
@@ -128,9 +137,8 @@ def test_recycle_driver_run_same_input_parameters(
     np.testing.assert_equal(original_metadata["inputs"], recycle_metadata["inputs"])
 
 
-def test_recycle_driver_run_different_input_parameters(
-    dummy_data_file,
-    parameters,
+def test_recycle_driver_different_input_parameters(
+    recycle_driver,
     different_sample,
     job_id,
     num_procs,
@@ -143,11 +151,34 @@ def test_recycle_driver_run_different_input_parameters(
     This test uses a different input sample for the recycle driver run
     than for the previous jobscript driver run.
     """
-    data_processor = DataProcessorNumpy(dummy_data_file, file_options_dict={})
-    driver = RecycleDriver(
-        parameters=parameters,
-        data_processor=data_processor,
-    )
-
     with pytest.raises(ValueError):
-        driver.run(different_sample, job_id, num_procs, tmp_path, experiment_name)
+        recycle_driver.run(different_sample, job_id, num_procs, tmp_path, experiment_name)
+
+
+def test_recycle_driver_new_metadata_files(
+    recycle_driver,
+    sample,
+    job_id,
+    num_procs,
+    tmp_path,
+    experiment_name,
+    _write_dummy_job_output,
+):
+    job_dir = tmp_path / str(job_id)
+    metadata_file = job_dir / "metadata.yaml"
+    metadata_file_recycle_run_1 = job_dir / "metadata_recycle_run_1.yaml"
+    metadata_file_recycle_run_2 = job_dir / "metadata_recycle_run_2.yaml"
+
+    assert os.path.isfile(metadata_file)
+    assert not os.path.isfile(metadata_file_recycle_run_1)
+    assert not os.path.isfile(metadata_file_recycle_run_2)
+
+    recycle_driver.run(sample, job_id, num_procs, tmp_path, experiment_name)
+    assert os.path.isfile(metadata_file)
+    assert os.path.isfile(metadata_file_recycle_run_1)
+    assert not os.path.isfile(metadata_file_recycle_run_2)
+
+    recycle_driver.run(sample, job_id, num_procs, tmp_path, experiment_name)
+    assert os.path.isfile(metadata_file)
+    assert os.path.isfile(metadata_file_recycle_run_1)
+    assert os.path.isfile(metadata_file_recycle_run_2)
