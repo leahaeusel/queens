@@ -14,6 +14,8 @@
 #
 """Unit tests for the jobscript driver."""
 
+import os
+
 import numpy as np
 import pytest
 import yaml
@@ -83,6 +85,18 @@ def fixture_input_templates(tmp_path, job_options, parameters):
     return input_template_1, input_template_2
 
 
+@pytest.fixture(name="executable")
+def fixture_executable(tmp_path):
+    """Generate a dummy executable."""
+    executable = tmp_path / "dummy_executable"
+    executable.write_text("This is a dummy file.")
+
+    # Make the dummy file executable
+    os.chmod(executable, 0o755)
+
+    return executable
+
+
 @pytest.fixture(name="injected_input_files")
 def fixture_injected_input_files(tmp_path, job_id, experiment_name):
     """Fixture for the create input files."""
@@ -94,14 +108,14 @@ def fixture_injected_input_files(tmp_path, job_id, experiment_name):
 
 
 @pytest.fixture(name="jobscript_driver")
-def fixture_jobscript_driver(parameters, input_templates):
+def fixture_jobscript_driver(parameters, input_templates, executable):
     """Jobscript driver object."""
     input_template_1, input_template_2 = input_templates
 
     driver = JobscriptDriver(
         parameters=parameters,
         jobscript_template="",
-        executable="",
+        executable=executable,
         input_templates={"input_1": input_template_1, "input_2": input_template_2},
     )
 
@@ -114,6 +128,7 @@ def test_jobscript_driver_multiple_input_files(
     """Test if multiple input files are correctly generated."""
     # Samples to be injected
     sample_dict = parameters.sample_as_dict(np.array([1, 2]))
+    sample = np.array(list(sample_dict.values()))
 
     # Arguments to call the run method of the driver
     job_id = job_options.job_id
@@ -123,7 +138,7 @@ def test_jobscript_driver_multiple_input_files(
 
     # Run the driver
     jobscript_driver.run(
-        sample=np.array(list(sample_dict.values())),
+        sample=sample,
         job_id=job_id,
         num_procs=num_procs,
         experiment_dir=experiment_dir,
@@ -137,3 +152,44 @@ def test_jobscript_driver_multiple_input_files(
     for input_file in injected_input_files.values():
         for key, value in yaml.safe_load(input_file.read_text()).items():
             assert value == str(injectable_options[key])
+
+
+def test_jobscript_driver_nonexistent_jobscript_template(parameters, input_templates):
+    """Test for an error when the jobscript template path does not exist."""
+    input_template, _ = input_templates
+    with pytest.raises(ValueError, match="The provided jobscript template dummy does not exist."):
+        JobscriptDriver(
+            parameters=parameters,
+            jobscript_template="dummy",
+            executable="",
+            input_templates=input_template,
+        )
+
+
+def test_jobscript_driver_nonexecutable_executable(parameters, job_options, input_templates):
+    """Test for an error when the executable is not executable."""
+    input_template, _ = input_templates
+    jobscript_driver = JobscriptDriver(
+        parameters=parameters,
+        jobscript_template="",
+        executable="dummy",
+        input_templates=input_template,
+    )
+    # Arguments to call the run method of the driver
+    job_id = job_options.job_id
+    num_procs = job_options.num_procs
+    experiment_dir = job_options.experiment_dir
+    experiment_name = job_options.experiment_name
+
+    # Samples to be injected
+    sample_dict = parameters.sample_as_dict(np.array([1, 2]))
+    sample = np.array(list(sample_dict.values()))
+
+    with pytest.raises(ValueError, match="The provided executable dummy is not an executable."):
+        jobscript_driver.run(
+            sample=sample,
+            job_id=job_id,
+            num_procs=num_procs,
+            experiment_dir=experiment_dir,
+            experiment_name=experiment_name,
+        )

@@ -15,6 +15,7 @@
 """Driver to run a jobscript."""
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -113,6 +114,11 @@ class JobscriptDriver(Driver):
         self.data_processor = data_processor
         self.gradient_data_processor = gradient_data_processor
 
+        if not Path(jobscript_template).exists():
+            raise ValueError(
+                f"The provided jobscript template {jobscript_template} does not exist."
+            )
+
         if Path(jobscript_template).is_file():
             self.jobscript_template = read_file(jobscript_template)
         else:
@@ -122,6 +128,7 @@ class JobscriptDriver(Driver):
             extra_options = {}
 
         self.jobscript_options = extra_options
+
         self.jobscript_options["executable"] = executable
         self.jobscript_file_name = jobscript_file_name
 
@@ -157,6 +164,8 @@ class JobscriptDriver(Driver):
         Returns:
             Result and potentially the gradient
         """
+        self._check_if_executable_is_an_executable()
+
         job_dir, output_dir, output_file, input_files, log_file, error_file = self._manage_paths(
             job_id, experiment_dir, experiment_name
         )
@@ -200,6 +209,21 @@ class JobscriptDriver(Driver):
             metadata.outputs = results
 
         return results
+
+    def _check_if_executable_is_an_executable(self):
+        """Check if the provided executable is actually an executable.
+
+        This is necessary because otherwise, QUEENS will not raise an error and the model output
+        will simply be None without any further explanation to the user.
+
+        Raises:
+            ValueError: If the provided executable is not executable.
+        """
+        if not os.access(self.jobscript_options["executable"], os.X_OK):
+            raise ValueError(
+                f"The provided executable {self.jobscript_options['executable']} is not an "
+                f"executable."
+            )
 
     def _manage_paths(self, job_id, experiment_dir, experiment_name):
         """Manage paths for driver run.
