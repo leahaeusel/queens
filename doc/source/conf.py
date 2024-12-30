@@ -151,8 +151,8 @@ html_theme = "pydata_sphinx_theme"
 #
 html_theme_options = {
     "logo": {
-        "image_light": "https://raw.githubusercontent.com/queens-py/queens-design/main/logo/queens_logo_day.svg",
-        "image_dark": "https://raw.githubusercontent.com/queens-py/queens-design/main/logo/queens_logo_night.svg",
+        "image_light": "https://raw.githubusercontent.com/queens-py/queens-design/main/logo_with_sidetext/queens_logo_with_sidetext_day.svg",
+        "image_dark": "https://raw.githubusercontent.com/queens-py/queens-design/main/logo_with_sidetext/queens_logo_with_sidetext_night.svg",
     }
 }
 
