@@ -1,3 +1,17 @@
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Copyright (c) 2025, QUEENS contributors.
+#
+# This file is part of QUEENS.
+#
+# QUEENS is free software: you can redistribute it and/or modify it under the terms of the GNU
+# Lesser General Public License as published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version. QUEENS is distributed in the hope that it will
+# be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details. You
+# should have received a copy of the GNU Lesser General Public License along with QUEENS. If not,
+# see <https://www.gnu.org/licenses/>.
+#
 """Implementation of Control Variates Iterator."""
 
 import logging
@@ -30,8 +44,10 @@ class ControlVariatesIterator(Iterator):
                                         If the expectation value of a control
                                         variate is not known, pass None as it's expected value.
         output (dict):                  Iterator outputs a dict with following entries:
-            - mean (float): Estimated mean of main model
-            - std (float): Calculated standard deviation of control variates estimator
+
+            * ``mean`` (float): Estimated mean of main model
+            * ``std`` (float): Calculated standard deviation of control variates estimator
+
         result_description (dict, opt): Desctiption of results of iterator.
         num_samples_cvs (list(int)):    Number of samples to use for computing the expectation
                                         value of control variable. If expectation of a control
