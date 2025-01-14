@@ -97,7 +97,7 @@ if __name__ == "__main__":
 <!---example marker, do not remove this comment-->
 
 <div align="center">
-<img src="readme_images/monte_carlo_uq.png" alt="QUEENS logo" width="500"/>
+<img src="doc/source/images/monte_carlo_uq.png" alt="QUEENS example" width="500"/>
 </div>
 
 ## :busts_in_silhouette: Contributing
