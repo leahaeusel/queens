@@ -33,9 +33,9 @@ sys.path.insert(0, str(PATH_TO_QUEENS.resolve()))
 
 # Add the readme example as easy tutorial for now
 sys.path.insert(1, str(relative_path_from_queens("doc/source").resolve()))
-from create_documentation_stuff import create_tutorial_from_readme
+from create_documentation_stuff import main
 
-create_tutorial_from_readme()
+main()
 
 
 # -- General configuration ------------------------------------------------
