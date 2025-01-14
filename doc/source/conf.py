@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# Copyright (c) 2024, QUEENS contributors.
+# Copyright (c) 2025, QUEENS contributors.
 #
 # This file is part of QUEENS.
 #
@@ -26,8 +26,17 @@
 import sys
 from pathlib import Path
 
-# sys.path.insert(0, str(Path('.')resolve))
-sys.path.insert(0, str(Path("../../").resolve))
+from queens.utils.path_utils import PATH_TO_QUEENS, relative_path_from_queens
+
+sys.path.insert(0, str(PATH_TO_QUEENS.resolve()))
+
+
+# Add the readme example as easy tutorial for now
+sys.path.insert(1, str(relative_path_from_queens("doc/source").resolve()))
+from create_documentation_stuff import create_tutorial_from_readme
+
+create_tutorial_from_readme()
+
 
 # -- General configuration ------------------------------------------------
 
