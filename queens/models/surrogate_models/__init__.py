@@ -12,4 +12,7 @@
 # should have received a copy of the GNU Lesser General Public License along with QUEENS. If not,
 # see <https://www.gnu.org/licenses/>.
 #
-"""Surrogate Models."""
+"""Surrogate Models.
+
+Modules for surrogate models.
+"""
