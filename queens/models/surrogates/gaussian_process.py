@@ -138,11 +138,24 @@ class GaussianProcess(Surrogate):
         self.scaler_y, self.y_train = init_scaler(y_train)
 
         # initialize hyperparameters
-        lengthscales_0 = 0.1 * np.ones(self.dimension_lengthscales)
-        variances_0 = max(abs(np.max(self.y_train) - np.min(self.y_train)), 1e-6)
-
+        #lengthscales_0 = 0.1 * np.ones(self.dimension_lengthscales)
+        #variances_0 = max(abs(np.max(self.y_train) - np.min(self.y_train)), 1e-6)
+        
         # choose kernel
-        kernel = gpf.kernels.RBF(lengthscales=lengthscales_0, variance=variances_0)
+        # kernel = gpf.kernels.RBF(lengthscales=lengthscales_0, variance=variances_0)
+        
+        # Adjustment (22/07/2025): Tensorised RBF kernel
+        kernels=[]
+        for dim in range(self.dimension_lengthscales):
+            lengthscale = 0.1
+            variance = max((abs(np.max(self.y_train))-np.min(self.y_train)), 1e-6)
+            kernels.append(
+                gpf.kernels.RBF(lengthscales=lengthscale, variance=variance, active_dims=[dim])
+                )
+        
+        kernel = gpf.kernels.Product(kernels)
+
+
 
         # initialize model
         self.model = gpf.models.GPR(
@@ -153,12 +166,17 @@ class GaussianProcess(Surrogate):
             self.model.likelihood.variance.assign(1.1e-6)  # small value for numerical stability
             gpf.utilities.set_trainable(self.model.likelihood.variance, False)
 
-        self.model.kernel.lengthscales = set_transform_function(
-            self.model.kernel.lengthscales, tfp.bijectors.Exp()
-        )
-        self.model.kernel.variance = set_transform_function(
-            self.model.kernel.variance, tfp.bijectors.Exp()
-        )
+        #self.model.kernel.lengthscales = set_transform_function(
+            #self.model.kernel.lengthscales, tfp.bijectors.Exp()
+        #)
+        #self.model.kernel.variance = set_transform_function(
+            #self.model.kernel.variance, tfp.bijectors.Exp()
+        #)
+        
+        # Adjustment (22/07/2025):
+        for kern in self.model.kernel.kernels:
+            kern.lengthscales = set_transform_function(kern.lengthscales, tfp.bijectors.Exp())
+            kern.variance = set_transform_function(kern.variance, tfp.bijectors.Exp())
 
     def train(self):
         """Train the GP by maximizing the likelihood."""
@@ -282,8 +300,16 @@ class GaussianProcess(Surrogate):
         if transform:
             hyperparameters = self.transform_hyperparameters(hyperparameters)
 
-        self.model.kernel.lengthscales.assign(hyperparameters[0 : self.dimension_lengthscales])
-        self.model.kernel.variance.assign(hyperparameters[self.dimension_lengthscales])
+        #self.model.kernel.lengthscales.assign(hyperparameters[0 : self.dimension_lengthscales])
+        #self.model.kernel.variance.assign(hyperparameters[self.dimension_lengthscales])
+
+        # Adjustment (22/07/2025)
+        offset = 0
+        for kern in self.model.kernel.kernels: 
+            kern.lengthscales.assign(hyperparameters[offset])
+            kern.variance.assign(hyperparameters[offset+1])
+            offset += 2
+
 
     def transform_hyperparameters(self, hyperparameters):
         """Transform hyperparameters.
@@ -296,21 +322,34 @@ class GaussianProcess(Surrogate):
         Returns:
             hyperparameters (np.ndarray): Constrained representation of hyperparameters
         """
-        hyperparameters = tf.convert_to_tensor(hyperparameters)
+        #hyperparameters = tf.convert_to_tensor(hyperparameters)
 
-        lengthscales = self.model.kernel.lengthscales.transform.forward(
-            hyperparameters[0 : self.dimension_lengthscales]
-        )
-        variances = tf.reshape(
-            self.model.kernel.variance.transform.forward(
-                hyperparameters[self.dimension_lengthscales]
-            ),
-            [-1],
-        )
+        #lengthscales = self.model.kernel.lengthscales.transform.forward(
+            #hyperparameters[0 : self.dimension_lengthscales]
+        # )
+        #variances = tf.reshape(
+            #self.model.kernel.variance.transform.forward(
+                #hyperparameters[self.dimension_lengthscales]
+            #),
+            #[-1],
+        #)
 
-        hyperparameters = tf.concat([lengthscales, variances], 0)
+        #hyperparameters = tf.concat([lengthscales, variances], 0)
 
-        return hyperparameters
+        #return hyperparameters
+        # Adjustment (22/07/2025):
+        transformed = []
+        offset = 0
+        for kern in self.model.kernel.kernels:
+          ls = kern.lengthscales.transform.forward(hyperparameters[offset])
+          var = kern.variance.transform.forward(hyperparameters[offset + 1])
+          transformed.extend([ls, var])
+          offset += 2
+
+        return tf.stack(transformed)
+    
+
+
 
     def get_dimension_hyperparameters(self):
         """Return the dimension of the hyperparameters.
@@ -318,10 +357,84 @@ class GaussianProcess(Surrogate):
         Returns:
             dimension_hyperparameters (int): Dimension of hyperparameters
         """
-        lengthscales = self.model.kernel.lengthscales.unconstrained_variable
-        variances = tf.reshape(self.model.kernel.variance.unconstrained_variable, [-1])
-        hyperparameters = tf.concat([lengthscales, variances], 0)
+        #lengthscales = self.model.kernel.lengthscales.unconstrained_variable
+        #variances = tf.reshape(self.model.kernel.variance.unconstrained_variable, [-1])
+        #hyperparameters = tf.concat([lengthscales, variances], 0)
+        
 
-        dimension_hyperparameters = hyperparameters.shape.dims[0]
+        # Adjustment (22/07/2025):
+        hyperparameters = []
+        for kern in self.model.kernel.kernels:
+            lengthscale = kern.lengthscales.unconstrained_variable
+            variance = kern.variance.unconstrained_variable
+            hyperparameters.append(lengthscale)
+            hyperparameters.append(variance)
+
+        dimension_hyperparameters = tf.stack(hyperparameters, 0).shape[0]
+
+        #dimension_hyperparameters = hyperparameters.shape.dims[0]
 
         return dimension_hyperparameters
+    
+
+    def save_model_to_dict(self):
+     return {
+        "x_train": self.x_train,
+        "y_train": self.y_train,
+        "scaler_x": self.scaler_x,
+        "scaler_y": self.scaler_y,
+        "kernel_params": [
+            {
+                "lengthscale": kern.lengthscales.numpy(),
+                "variance": kern.variance.numpy(),
+                "active_dims": kern.active_dims,
+            }
+            for kern in self.model.kernel.kernels
+        ],
+        "likelihood_variance": self.model.likelihood.variance.numpy(),
+        "train_likelihood_variance": self.train_likelihood_variance,
+        "dimension_lengthscales": self.dimension_lengthscales,
+        "number_input_dimensions": self.number_input_dimensions,
+    }
+
+    def load_model_from_dict(self, data_dict):
+        self.x_train = data_dict["x_train"]
+        self.y_train = data_dict["y_train"]
+        self.scaler_x = data_dict["scaler_x"]
+        self.scaler_y = data_dict["scaler_y"]
+        self.dimension_lengthscales = data_dict["dimension_lengthscales"]
+        self.number_input_dimensions = data_dict["number_input_dimensions"]
+        self.train_likelihood_variance = data_dict["train_likelihood_variance"]
+
+        # Step 1: Rebuild kernel
+        kernels = []
+        for k in data_dict["kernel_params"]:
+            kern = gpf.kernels.RBF(
+                lengthscales=k["lengthscale"],
+                variance=k["variance"],
+                active_dims=k["active_dims"],
+            )
+            # Reapply transformation functions
+            kern.lengthscales = set_transform_function(kern.lengthscales, tfp.bijectors.Exp())
+            kern.variance = set_transform_function(kern.variance, tfp.bijectors.Exp())
+            kernels.append(kern)
+
+        kernel = gpf.kernels.Product(kernels)
+
+        # Step 2: Rebuild GPFlow model
+        self.model = gpf.models.GPR(data=(self.x_train, self.y_train), kernel=kernel)
+
+        if not self.train_likelihood_variance:
+            gpf.utilities.set_trainable(self.model.likelihood.variance, False)
+
+        self.model.likelihood.variance.assign(data_dict["likelihood_variance"])
+
+        # Step 3: Reassign hyperparameters using saved values
+        hparam_vector = []
+        for k in data_dict["kernel_params"]:
+            hparam_vector.append(k["lengthscale"])
+            hparam_vector.append(k["variance"])
+        hparam_vector = tf.convert_to_tensor(hparam_vector)
+
+        self.assign_hyperparameters(hparam_vector, transform=False)
+

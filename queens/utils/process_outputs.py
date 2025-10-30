@@ -41,7 +41,7 @@ def process_outputs(output_data, output_description, input_data=None):
     processed_results = {}
     try:
         processed_results = do_processing(output_data, output_description)
-    except (TypeError, KeyError) as error:
+    except (TypeError, KeyError, ValueError) as error:
         _logger.warning("Error occurred during result processing: %s", str(error))
 
     # add the actual raw input and output data
@@ -79,20 +79,25 @@ def do_processing(output_data, output_description):
     result_interval = output_description.get("result_interval", None)
     # TODO: we get an error below! # pylint: disable=fixme
 
-    if result_interval is None:
+    #if result_interval is None:
         # estimate interval from results
-        result_interval = estimate_result_interval(output_data)
+        # result_interval = estimate_result_interval(output_data)
 
     # get number of support points
     num_support_points = output_description.get("num_support_points", 100)
     support_points = np.linspace(result_interval[0], result_interval[1], num_support_points)
 
-    mean_mean = estimate_mean(output_data)
-    var_mean = estimate_var(output_data)
 
+    # Change 31/07/2025
     processed_results = {}
-    processed_results["mean"] = mean_mean
-    processed_results["var"] = var_mean
+    try:
+        processed_results["mean"] = estimate_mean(output_data)
+        processed_results["var"] = estimate_var(output_data)
+    except Exception as e:
+        _logger.warning("Could not estimate mean/variance: %s", str(e))
+        processed_results["mean"] = None
+        processed_results["var"] = None
+    # End of change
 
     if output_description.get("cov", False):
         cov_mean = estimate_cov(output_data)

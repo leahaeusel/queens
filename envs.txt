@@ -1,0 +1,6 @@
+
+# conda environments:
+#
+base                   /data/home/ehrenreich/miniforge3
+queens               * /data/home/ehrenreich/miniforge3/envs/queens
+

@@ -131,7 +131,7 @@ class SequentialMonteCarlo(Iterator):
             scale_covariance=1.0,
             num_burn_in=0,
             num_chains=num_particles,
-            as_smc_rejuvenation_step=True,
+            as_smc_rejuvenation_step=True, 
             temper_type=temper_type,
         )
 
@@ -209,7 +209,8 @@ class SequentialMonteCarlo(Iterator):
         self.log_prior = self.eval_log_prior(self.particles)
         self.log_posterior = self.log_likelihood + self.log_prior
         # initialize importance weights
-        self.weights = np.ones(self.num_particles)
+        #self.weights = np.ones(self.num_particles)
+        self.weights = np.ones(self.num_particles) / self.num_particles # Change 28/07/2025
         self.ess_cur = self.num_particles
         self.ess.append(self.ess_cur)
 
@@ -343,8 +344,20 @@ class SequentialMonteCarlo(Iterator):
         """
         # draw from multinomial distribution to decide
         # the frequency of individual particles
-        particle_freq = np.random.multinomial(self.num_particles, self.weights)
+        # Change 31/07/2025
+        weights = np.nan_to_num(self.weights, nan=0.0, posinf=0.0, neginf=0.0)
+        weights = np.clip(weights, a_min=0.0, a_max=None)
 
+        total = np.sum(weights)
+        
+        if total <= 0.0:
+           weights = np.ones_like(weights) / len(weights)
+        else:
+           weights = weights / total
+        
+        particle_freq = np.random.multinomial(self.num_particles,weights)
+        # End of change
+        
         idx_list = []
         for idx, freq in enumerate(particle_freq):
             idx_list += [idx] * freq
@@ -422,28 +435,32 @@ class SequentialMonteCarlo(Iterator):
             if self.plot_trace_every and not step % self.plot_trace_every:
                 self.draw_trace(step)
 
+    # Changed on 31/07/2025
     def post_run(self):
         """Analyze the resulting importance sample."""
         normalized_weights = self.weights / np.sum(self.weights)
 
         particles_resampled, _, _, _ = self.resample()
+        results = None  # Initialize outside try block for later access
         if self.result_description:
-            # TODO # pylint: disable=fixme
-            # interpret the resampled particles as a single markov chain -> in accordance with the
-            # Metropolis Hastings iterator add a dimension to the numpy array
-            # this enables the calculation of the covariance matrix
-            results = process_outputs(
-                {
-                    "result": particles_resampled[:, np.newaxis, :],
-                    "particles": self.particles,
-                    "weights": normalized_weights,
-                    "log_likelihood": self.log_likelihood,
-                    "log_prior": self.log_prior,
-                    "log_posterior": self.log_posterior,
-                },
-                self.result_description,
-            )
-            if self.result_description["write_results"]:
+            # interpret the resampled particles as a single markov chain
+            try:
+                results = process_outputs(
+                    {
+                        "result": particles_resampled.reshape(1, -1, particles_resampled.shape[1]),
+                        "particles": self.particles,
+                        "weights": normalized_weights,
+                        "log_likelihood": self.log_likelihood,
+                        "log_prior": self.log_prior,
+                        "log_posterior": self.log_posterior,
+                    },
+                    self.result_description,
+                )
+            except Exception as e:
+                _logger.warning("Error occurred during result processing: %s", str(e))
+                results = None
+
+            if self.result_description["write_results"] and results is not None:
                 write_results(results, self.global_settings.result_file(".pickle"))
 
             if self.result_description["plot_results"]:
@@ -459,14 +476,21 @@ class SequentialMonteCarlo(Iterator):
             _logger.info("\tESS: %s", self.ess_cur)
             _logger.info("\tIS mean±std: %s±%s", mean, std)
 
-            _logger.info(
-                "\tmean±std: %s±%s",
-                results.get("mean", np.nan),
-                np.sqrt(results.get("var", np.nan)),
-            )
-            _logger.info("\tvar: %s", (results.get("var", np.nan)))
-            _logger.info("\tcov: %s", results.get("cov", np.nan))
+            # Safely access results if they were computed
+            if results is not None:
+                res_mean = results.get("mean", np.nan)
+                res_var = results.get("var", np.nan)
+                res_cov = results.get("cov", np.nan)
 
+                _logger.info("\tmean±std: %s±%s", res_mean, np.sqrt(res_var))
+                _logger.info("\tvar: %s", res_var)
+                _logger.info("\tcov: %s", res_cov)
+            else:
+                _logger.warning("Result processing returned None; skipping mean/var/cov logging.")
+
+        return results
+
+    # End of change
     def draw_trace(self, step):
         """Plot the trace of the current particle approximation.
 

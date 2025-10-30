@@ -36,6 +36,7 @@ def sample_sobol_sequence(dimension, number_of_samples, parameters, randomize=Fa
     """
     # create uniform quasi Monte Carlo (qmc) samples
     sobol_engine = Sobol(d=dimension, scramble=randomize, seed=seed)
+    sobol_engine = sobol_engine.fast_forward(n=1000)
 
     qmc_samples = sobol_engine.random(n=number_of_samples)
     # scale and transform samples according to the inverse cdf such that they follow their "true"

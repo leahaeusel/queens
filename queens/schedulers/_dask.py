@@ -139,7 +139,10 @@ class Dask(Scheduler):
             # We should remove this squeeze! It is only introduced for consistency with old test.
             result_dict["result"].append(np.atleast_1d(np.array(result[0]).squeeze()))
             result_dict["gradient"].append(result[1])
-        result_dict["result"] = np.array(result_dict["result"])
+        try:
+            result_dict["result"] = np.array(result_dict["result"])
+        except ValueError:
+            result_dict["result"] = result_dict["result"]
         result_dict["gradient"] = np.array(result_dict["gradient"])
         return result_dict
 
