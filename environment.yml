@@ -6,12 +6,14 @@ channels:
 # be listed explicitly here.
   - nodefaults
 dependencies:
+  # renovate: data-source=conda  depName=conda-forge/python
   - python==3.11
 # to ensure that performance optimized backends are used,
 # the following packages are installed from conda
 # for example BLAS libraries like Intel MKL for numpy
   - cython==3.0.11
   - numba==0.60.0
+  # renovate: data-source=conda  depName=conda-forge/numpy
   - numpy==1.26.4
   - pandas==2.2.3
   - scikit-learn==1.5.2

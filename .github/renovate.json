@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "baseBranchPatterns":["main-with-renovate-comments"],
+  "packageRules": [
+    {
+      "matchManagers": ["pip_requirements", "conda"],
+      "groupName": "Python dependencies",
+      "separateMajorMinor": false
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub actions",
+      "separateMajorMinor": false
+    }
+  ],
+  "dependencyDashboard": true
+}
