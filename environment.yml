@@ -6,16 +6,24 @@ channels:
 # be listed explicitly here.
   - nodefaults
 dependencies:
+  # renovate: datasource=conda depName=conda-forge/python
   - python==3.11
 # to ensure that performance optimized backends are used,
 # the following packages are installed from conda
 # for example BLAS libraries like Intel MKL for numpy
+  # renovate: datasource=conda depName=conda-forge/cython
   - cython==3.0.11
+  # renovate: datasource=conda depName=conda-forge/numba
   - numba==0.60.0
+  # renovate: datasource=conda  depName=conda-forge/numpy
   - numpy==1.26.4
+  # renovate: datasource=conda depName=conda-forge/pandas
   - pandas==2.2.3
+  # renovate: datasource=conda depName=conda-forge/scikit-learn
   - scikit-learn==1.5.2
+  # renovate: datasource=conda depName=conda-forge/scipy
   - scipy==1.14.1
+  # renovate: datasource=conda depName=conda-forge/libopenblas
   - libopenblas==0.3.28
 # required for jupyter notebook integration into the sphinx documentation
   - pandoc
