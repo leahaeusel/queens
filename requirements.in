@@ -25,7 +25,7 @@ diversipy # sampling from space filling subsets
 vtk>=9.2.0 # vtk format handler
 pyvista
 autograd # wrapper around numpy for automated differentiation
-particles # Chopin et al. sequential Monte-Carlo, filtering/smoothing package
+particles @ git+https://github.com/nchopin/particles.git # Chopin et al. sequential Monte-Carlo, filtering/smoothing package (needs to be installed from github since the latest version on PyPI requires Numpy < 2)
 chaospy # polynomial chaos
 pyyaml # to load yaml files
 jinja2
@@ -64,6 +64,3 @@ tomli # TOML parser
 # Other Python stuff
 pathos # multiprocessing with more complex python objects
 black>=24.4.2 # formatter for code created by QUEENS's create_script_from_input_file() method
-
-# needed for dev-requirements, check if still needed
-importlib-metadata<7
