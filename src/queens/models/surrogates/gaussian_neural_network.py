@@ -15,6 +15,7 @@
 """Gaussian Neural Network regression model."""
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -34,6 +35,27 @@ configure_tensorflow(tf)
 configure_keras(keras)
 
 _logger = logging.getLogger(__name__)
+
+
+@tf.keras.utils.register_keras_serializable()
+class GaussianOutputLayer(keras.layers.Layer):
+    """Serializable output layer that returns a Gaussian distribution."""
+
+    def __init__(self, output_dim, nugget_std, **kwargs):
+        super().__init__(**kwargs)
+        self.output_dim = int(output_dim)
+        self.nugget_std = float(nugget_std)
+
+    def call(self, d):
+        return tfd.MultivariateNormalDiag(
+            loc=d[..., : self.output_dim],
+            scale_diag=self.nugget_std + tf.math.softplus(0.1 * d[..., self.output_dim :]),
+        )
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"output_dim": self.output_dim, "nugget_std": self.nugget_std})
+        return config
 
 
 class GaussianNeuralNetwork(Surrogate):
@@ -116,7 +138,7 @@ class GaussianNeuralNetwork(Surrogate):
         """
         super().__init__()
         # check mean function and subtract from y_train
-        valid_mean_function_types = {
+        self.valid_mean_function_types = {
             "zero": (lambda x: 0, lambda x: 0),
             "identity_multi_fidelity": (
                 lambda x: np.atleast_2d(x[:, 0]).T,
@@ -124,22 +146,20 @@ class GaussianNeuralNetwork(Surrogate):
             ),
         }
 
-        mean_function, gradient_mean_function = get_option(
-            valid_mean_function_types, mean_function_type, "mean_function_type"
-        )
-
+        self.mean_function_type = mean_function_type
+        self.mean_function = None
+        self.gradient_mean_function = None
         self.nn_model = None
         self.num_epochs = num_epochs
         self.optimizer_seed = optimizer_seed
         self.verbosity_on = verbosity_on
         self.batch_size = batch_size
-        self.scaler_x = get_option(VALID_SCALER, data_scaling)()
-        self.scaler_y = get_option(VALID_SCALER, data_scaling)()
+        self.data_scaling = data_scaling
+        self.scaler_x = None
+        self.scaler_y = None
         self.loss_plot_path = loss_plot_path
         self.num_refinements = 0
         self.refinement_epochs_decay = refinement_epochs_decay
-        self.mean_function = mean_function
-        self.gradient_mean_function = gradient_mean_function
 
         self.adams_training_rate = adams_training_rate
         self.nodes_per_hidden_layer = nodes_per_hidden_layer_lst
@@ -178,12 +198,7 @@ class GaussianNeuralNetwork(Surrogate):
                 2 * output_dim,
                 activation="linear",
             ),
-            tfp.layers.DistributionLambda(
-                lambda d: tfd.Normal(
-                    loc=d[..., :output_dim],
-                    scale=self.nugget_std + tf.math.softplus(0.1 * d[..., output_dim:]),
-                )
-            ),
+            GaussianOutputLayer(output_dim, self.nugget_std),
         ]
         dense_architecture.extend(output_layer)
         model = keras.Sequential(dense_architecture)
@@ -233,6 +248,12 @@ class GaussianNeuralNetwork(Surrogate):
             x_train (np.array): training inputs
             y_train (np.array): training outputs
         """
+        self.mean_function, self.gradient_mean_function = get_option(
+            self.valid_mean_function_types, self.mean_function_type, "mean_function_type"
+        )
+        self.scaler_x = get_option(VALID_SCALER, self.data_scaling)()
+        self.scaler_y = get_option(VALID_SCALER, self.data_scaling)()
+
         y_train = y_train - self.mean_function(x_train)
 
         self.scaler_x.fit(x_train)
@@ -380,3 +401,40 @@ class GaussianNeuralNetwork(Surrogate):
         )
 
         return output
+
+    def save(self, path):
+        """Save the model to a specified path.
+
+        Args:
+            path (str): Path where the model should be saved
+        """
+        path.mkdir(exist_ok=True)
+
+        self.nn_model.save(path / "nn_model")
+        self.scaler_x.save(path / "scaler_x.npz")
+        self.scaler_y.save(path / "scaler_y.npz")
+        np.savez(
+            path / "metadata.npz",
+            mean_function_type=self.mean_function_type,
+            data_scaling=self.data_scaling,
+        )
+
+    def load(self, path):
+        """Load the model from a specified path.
+
+        Args:
+            path (str): Path where the model should be loaded from
+        """
+        self.nn_model = keras.models.load_model(path / "nn_model", compile=False)
+
+        metadata = np.load(path / "metadata.npz")
+        self.mean_function_type = str(metadata["mean_function_type"])
+        self.data_scaling = str(metadata["data_scaling"])
+        self.mean_function, self.gradient_mean_function = get_option(
+            self.valid_mean_function_types, self.mean_function_type, "mean_function_type"
+        )
+
+        self.scaler_x = get_option(VALID_SCALER, self.data_scaling)()
+        self.scaler_y = get_option(VALID_SCALER, self.data_scaling)()
+        self.scaler_x.load(path / "scaler_x.npz")
+        self.scaler_y.load(path / "scaler_y.npz")

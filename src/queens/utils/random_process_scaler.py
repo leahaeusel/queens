@@ -15,6 +15,7 @@
 """Utils for data scaling."""
 
 import abc
+from pathlib import Path
 
 import numpy as np
 
@@ -68,6 +69,22 @@ class Scaler(metaclass=abc.ABCMeta):
 
         Args:
             x_mat (np.array): Data matrix that should be standardized
+        """
+
+    @abc.abstractmethod
+    def save(self, path: str | Path):
+        """Save the scaler parameters at the given path.
+
+        Args:
+            path (str): Path where the scaler should be saved
+        """
+
+    @abc.abstractmethod
+    def load(self, path: str | Path):
+        """Load the scaler parameters from the given path.
+
+        Args:
+            path (str): Path where the scaler should be loaded from
         """
 
 
@@ -163,6 +180,24 @@ class StandardScaler(Scaler):
         transformed_grad_var = 2 * np.sqrt(trans_var) * transformed_grad_std
         return transformed_grad_var
 
+    def save(self, path):
+        """Save the scaler parameters at the given path.
+
+        Args:
+            path (str): Path where the scaler should be saved
+        """
+        np.savez(path, mean=self.mean, standard_deviation=self.standard_deviation)
+
+    def load(self, path):
+        """Load the scaler parameters from the given path.
+
+        Args:
+            path (str): Path where the scaler should be loaded from
+        """
+        data = np.load(path)
+        self.mean = data["mean"]
+        self.standard_deviation = data["standard_deviation"]
+
 
 class IdentityScaler(Scaler):
     """The identity scaler."""
@@ -234,6 +269,22 @@ class IdentityScaler(Scaler):
         """
         transformed_grad = grad_var
         return transformed_grad
+
+    def save(self, path):
+        """Save the scaler parameters at the given path.
+
+        Args:
+            path (str): Path where the scaler should be saved
+        """
+        pass
+
+    def load(self, path):
+        """Load the scaler parameters from the given path.
+
+        Args:
+            path (str): Path where the scaler should be loaded from
+        """
+        pass
 
 
 VALID_SCALER = {"standard_scaler": StandardScaler, "identity_scaler": IdentityScaler}
