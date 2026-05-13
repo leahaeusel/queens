@@ -15,9 +15,9 @@
 """Gaussian Neural Network regression model."""
 
 import logging
-from pathlib import Path
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 import tensorflow as tf
 import tensorflow_probability as tfp
 import tf_keras as keras
@@ -49,7 +49,7 @@ class GaussianOutputLayer(keras.layers.Layer):
     def call(self, d):
         return tfd.MultivariateNormalDiag(
             loc=d[..., : self.output_dim],
-            scale_diag=self.nugget_std + tf.math.softplus(0.1 * d[..., self.output_dim :]),
+            scale_diag=self.nugget_std + tf.math.softplus(d[..., self.output_dim :]),
         )
 
     def get_config(self):
@@ -90,6 +90,7 @@ class GaussianNeuralNetwork(Surrogate):
                                             Network
         kernel_initializer (str): Type of kernel initialization for neural network
         nugget_std (float): Nugget standard deviation for robustness
+        num_validation_data (int): Number of validation samples taken from training data
     """
 
     @log_init_args
@@ -108,6 +109,9 @@ class GaussianNeuralNetwork(Surrogate):
         refinement_epochs_decay=0.75,
         data_scaling=None,
         mean_function_type="zero",
+        dropout_rate=None,
+        batch_norm=False,
+        num_validation_data=None,
     ):
         """Initialize an instance of the Gaussian Bayesian Neural Network.
 
@@ -132,6 +136,8 @@ class GaussianNeuralNetwork(Surrogate):
             refinement_epochs_decay (float): Decrease of epochs in refinements
             data_scaling (str): Data scaling type
             mean_function_type (str): Mean function type of the Gaussian Neural Network
+            batch_norm (bool): Whether to add batch normalization after each dense layer
+            num_validation_data (int): Number of validation samples taken from training data
 
         Returns:
             Instance of GaussianBayesianNeuralNetwork
@@ -166,6 +172,10 @@ class GaussianNeuralNetwork(Surrogate):
         self.activation_per_hidden_layer = activation_per_hidden_layer_lst
         self.kernel_initializer = kernel_initializer
         self.nugget_std = nugget_std
+        self.dropout_rate = dropout_rate
+        self.batch_norm = batch_norm
+        self.num_validation_data = num_validation_data
+        self.validation_data = None
 
     def _build_model(self):
         """Build/compile the neural network.
@@ -181,16 +191,21 @@ class GaussianNeuralNetwork(Surrogate):
         # hidden layers
         output_dim = self.y_train.shape[1]
 
-        dense_architecture = [
-            keras.layers.Dense(
-                int(num_nodes),
-                activation=activation,
-                kernel_initializer=self.kernel_initializer,
+        dense_architecture = []
+        for num_nodes, activation in zip(
+            self.nodes_per_hidden_layer, self.activation_per_hidden_layer
+        ):
+            dense_architecture.append(
+                keras.layers.Dense(
+                    int(num_nodes),
+                    activation=activation,
+                    kernel_initializer=self.kernel_initializer,
+                )
             )
-            for num_nodes, activation in zip(
-                self.nodes_per_hidden_layer, self.activation_per_hidden_layer
-            )
-        ]
+            if self.batch_norm:
+                dense_architecture.append(keras.layers.BatchNormalization())
+            if self.dropout_rate is not None:
+                dense_architecture.append(keras.layers.Dropout(self.dropout_rate))
 
         # Gaussian output layer
         output_layer = [
@@ -204,7 +219,7 @@ class GaussianNeuralNetwork(Surrogate):
         model = keras.Sequential(dense_architecture)
 
         # compile the Tensorflow model
-        optimizer = keras.optimizers.Adamax(learning_rate=self.adams_training_rate)
+        optimizer = keras.optimizers.Adamax(learning_rate=self.adams_training_rate, clipnorm=1.0e3)
 
         model.compile(
             optimizer=optimizer,
@@ -225,8 +240,8 @@ class GaussianNeuralNetwork(Surrogate):
             negative_log_likelihood (float): Negative logarithmic likelihood of random_variable_y
                                              at y
         """
-        negative_log_likelihood = -random_variable_y.log_prob(y)
-        return negative_log_likelihood
+        negative_log_likelihoods = -random_variable_y.log_prob(y)
+        return tf.reduce_mean(negative_log_likelihoods)
 
     def update_training_data(self, x_train, y_train):
         """Update the training data of the model.
@@ -261,6 +276,17 @@ class GaussianNeuralNetwork(Surrogate):
         self.scaler_y.fit(y_train)
         self.y_train = self.scaler_y.transform(y_train)
 
+        self.validation_data = None
+        if self.num_validation_data is not None:
+            if self.num_validation_data <= 0:
+                raise ValueError("num_validation_data must be positive when provided.")
+            if self.num_validation_data >= x_train.shape[0]:
+                raise ValueError("num_validation_data must be smaller than training set size.")
+            self.x_train, x_val, self.y_train, y_val = train_test_split(
+                x_train, y_train, test_size=self.num_validation_data, random_state=42, shuffle=True
+            )
+            self.validation_data = (x_val, y_val)
+
         self.nn_model = self._build_model()
 
     def train(self):
@@ -286,10 +312,16 @@ class GaussianNeuralNetwork(Surrogate):
             epochs=self.num_epochs,
             verbose=self.verbosity_on,
             batch_size=self.batch_size,
+            validation_data=self.validation_data,
+            callbacks=[
+                keras.callbacks.EarlyStopping(
+                    monitor="val_loss", patience=1000, restore_best_weights=True
+                )
+            ],
         )
 
         # print out the model summary
-        self.nn_model.summary()
+        self.nn_model.summary(print_fn=_logger.info)
 
         if self.loss_plot_path:
             plot_loss(history, self.loss_plot_path)
@@ -349,6 +381,57 @@ class GaussianNeuralNetwork(Surrogate):
             -1, 1
         )
         output["result"] = self.scaler_y.inverse_transform_mean(mean_pred).reshape(
+            -1, 1
+        ) + self.mean_function(x_test)
+
+        return output
+
+    def predict_y_mc(self, x_test, num_samples=100):
+        """Predict the posterior mean and variance with MC dropout.
+
+        Args:
+            x_test (np.array): Testing input vector for which the posterior distribution,
+                               respectively point estimates should be predicted
+            num_samples (int, optional): Number of MC dropout samples
+
+        Returns:
+            output (dict): Dictionary with posterior output statistics
+        """
+        if num_samples <= 0:
+            raise ValueError("num_samples must be positive.")
+
+        x_test_transformed = self.scaler_x.transform(x_test)
+        means = []
+        variances = []
+        for _ in range(num_samples):
+            yhat = self.nn_model(x_test_transformed, training=True)
+            means.append(yhat.mean().numpy())
+            variances.append(yhat.variance().numpy())
+
+        means = np.stack(means, axis=0)
+        variances = np.stack(variances, axis=0)
+
+        mean = means.mean(axis=0)
+        var_epistemic = means.var(axis=0)
+        var_aleatoric = variances.mean(axis=0)
+        var_total = var_epistemic + var_aleatoric
+
+        mean = np.atleast_2d(mean).T
+        var_epistemic = np.atleast_2d(var_epistemic).T
+        var_aleatoric = np.atleast_2d(var_aleatoric).T
+        var_total = np.atleast_2d(var_total).T
+
+        output = {"variance_untransformed": var_total}
+        output["variance_epistemic"] = (
+            self.scaler_y.inverse_transform_std(np.sqrt(var_epistemic)) ** 2
+        ).reshape(-1, 1)
+        output["variance_aleatoric"] = (
+            self.scaler_y.inverse_transform_std(np.sqrt(var_aleatoric)) ** 2
+        ).reshape(-1, 1)
+        output["variance"] = (self.scaler_y.inverse_transform_std(np.sqrt(var_total)) ** 2).reshape(
+            -1, 1
+        )
+        output["result"] = self.scaler_y.inverse_transform_mean(mean).reshape(
             -1, 1
         ) + self.mean_function(x_test)
 

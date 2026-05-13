@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 
 def plot_loss(history, loss_plot_path):
@@ -26,8 +26,13 @@ def plot_loss(history, loss_plot_path):
         history (obj): Tensorflow history object of the training routine
         loss_plot_path (str): Path to save the loss plot
     """
-    _, ax = plt.subplots()
-    ax.plot(history.history["loss"])
-    ax.set_ylabel("-log lik.")
-    ax.set_xlabel("# epochs")
-    plt.savefig(Path(loss_plot_path, "loss_plot.jpg"), dpi=300)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(y=history.history["loss"], mode="lines", name="Loss"))
+    if "val_loss" in history.history:
+        fig.add_trace(
+            go.Scatter(y=history.history["val_loss"], mode="lines", name="Validation Loss")
+        )
+    fig.update_layout(xaxis_title="# epochs", yaxis_title="-log lik.")
+    loss_plot_path = Path(loss_plot_path)
+    loss_plot_path.mkdir(exist_ok=True)
+    fig.write_html(loss_plot_path / "loss_plot.html")
