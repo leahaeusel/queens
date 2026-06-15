@@ -17,6 +17,7 @@
 Modules for multi-query mapping of inputs to outputs, such as parameter
 samples to model evaluations.
 """
+
 from typing import TYPE_CHECKING
 
 from queens.utils.imports import extract_type_checking_imports, import_class_from_class_module_map
@@ -24,8 +25,12 @@ from queens.utils.imports import extract_type_checking_imports, import_class_fro
 if TYPE_CHECKING:
     from queens.models.adjoint import Adjoint
     from queens.models.bmfmc import BMFMC
+    from queens.models.ensemble import Ensemble
     from queens.models.finite_difference import FiniteDifference
-    from queens.models.likelihoods.bmf_gaussian import BMFGaussian, BmfiaInterface
+    from queens.models.likelihoods.bmf_gaussian import (
+        MultiFidelityGaussian,
+        BmfiaInterface,
+    )
     from queens.models.likelihoods.gaussian import Gaussian
     from queens.models.reinforcement_learning.reinforcement_learning import ReinforcementLearning
     from queens.models.simulation import Simulation
@@ -36,6 +41,8 @@ if TYPE_CHECKING:
         HeteroskedasticGaussianProcess,
     )
     from queens.models.surrogates.jitted_gaussian_process import JittedGaussianProcess
+    from queens.models.surrogates.multi_fidelity_conditional import MultiFidelityConditional
+    from queens.models.surrogates.neural_network import NeuralNetwork
     from queens.models.surrogates.variational_gaussian_process import VariationalGaussianProcess
 
 

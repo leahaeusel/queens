@@ -209,7 +209,7 @@ class SequentialMonteCarlo(Iterator):
         self.log_prior = self.eval_log_prior(self.particles)
         self.log_posterior = self.log_likelihood + self.log_prior
         # initialize importance weights
-        self.weights = np.ones(self.num_particles)
+        self.weights = np.ones(self.num_particles) / self.num_particles
         self.ess_cur = self.num_particles
         self.ess.append(self.ess_cur)
 

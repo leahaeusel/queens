@@ -19,7 +19,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from queens.iterators.bmfia import BMFIA
+from queens.iterators.multi_fidelity_training_data import MultiFidelityTrainingData
 from queens.models.simulation import Simulation
 
 
@@ -36,19 +36,21 @@ def fixture_files_to_copy():
     return ["fileA", "fileB"]
 
 
-@pytest.fixture(name="get_patched_bmfia_iterator")
-def fixture_get_patched_bmfia_iterator(global_settings):
-    """Function that returns a dummy BMFIA iterator for testing."""
+@pytest.fixture(name="get_patched_multi_fidelity_mapping")
+def fixture_get_patched_multi_fidelity_mapping(global_settings):
+    """Function that returns a dummy MultiFidelityMapping iterator for testing."""
 
-    def get_patched_bmfia_iterator(parameters, hf_model, lf_model):
+    def get_patched_multi_fidelity_mapping(parameters, hf_model, lf_model):
         x_train = np.array([[1, 2], [3, 4]])
         features_config = "no_features"
         x_cols = None
         num_features = None
         coord_cols = None
 
-        with patch.object(BMFIA, "calculate_initial_x_train", lambda *args: x_train):
-            iterator = BMFIA(
+        with patch.object(
+            MultiFidelityTrainingData, "calculate_initial_x_train", lambda *args: x_train
+        ):
+            iterator = MultiFidelityTrainingData(
                 parameters=parameters,
                 global_settings=global_settings,
                 features_config=features_config,
@@ -69,7 +71,7 @@ def fixture_get_patched_bmfia_iterator(global_settings):
 
         return iterator
 
-    return get_patched_bmfia_iterator
+    return get_patched_multi_fidelity_mapping
 
 
 @pytest.fixture(name="result_description")

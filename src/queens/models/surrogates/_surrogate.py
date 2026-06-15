@@ -52,14 +52,14 @@ class Surrogate(Model):
     ):
         """Initialize data fit.
 
-        Args:possi     training_iterator (Iterator): Iterator to
-        evaluate the subordinate model with the purpose of getting
-        training data     testing_iterator (Iterator): Iterator to
-        evaluate the subordinate model with the purpose of getting
-        testing data eval_fit (str): How to evaluate goodness of fit
-        error_measures (list): List of error measures to compute
-        efficiency should be evaluated     plotting_options (dict):
-        plotting options
+        Args:
+            training_iterator (Iterator): Iterator to evaluate the subordinate model with the
+                purpose of getting training data
+            testing_iterator (Iterator): Iterator to evaluate the subordinate model with the
+                purpose of getting testing data
+            eval_fit (str): How to evaluate goodness of fit
+            error_measures (list): List of error measures to compute
+            plotting_options (dict): plotting options
         """
         super().__init__()
 

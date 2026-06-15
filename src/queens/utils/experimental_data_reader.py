@@ -109,8 +109,4 @@ class ExperimentalDataReader:
             y_obs_vec,
             experimental_coordinates,
             time_vec,
-            experimental_data_dict,
-            self.time_label,
-            self.coordinate_labels,
-            self.output_label,
         )

@@ -17,13 +17,14 @@
 Modules for parameter studies, uncertainty quantification, sensitivity
 analysis, Bayesian inverse analysis, and optimization.
 """
+
 from typing import TYPE_CHECKING
 
 from queens.utils.imports import extract_type_checking_imports, import_class_from_class_module_map
 
 if TYPE_CHECKING:
     from queens.iterators.bbvi import BBVI
-    from queens.iterators.bmfia import BMFIA
+    from queens.iterators.multi_fidelity_training_data import MultiFidelityTrainingData
     from queens.iterators.bmfmc import BMFMC
     from queens.iterators.classification import ClassificationIterator
     from queens.iterators.data import Data

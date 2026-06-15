@@ -20,19 +20,23 @@ import pytest
 from queens.distributions.normal import Normal
 from queens.distributions.uniform import Uniform
 from queens.drivers.function import Function
-from queens.iterators.bmfia import BMFIA
+from queens.iterators.multi_fidelity_training_data import MultiFidelityTrainingData
 from queens.iterators.reparameteriztion_based_variational import RPVI
 from queens.iterators.sequential_monte_carlo import SequentialMonteCarlo
 from queens.main import run_iterator
-from queens.models.likelihoods.bmf_gaussian import BMFGaussian, BmfiaInterface
+from queens.models.likelihoods.bmf_gaussian import MultiFidelityGaussian
 from queens.models.simulation import Simulation
 from queens.models.surrogates.gaussian_neural_network import GaussianNeuralNetwork
 from queens.models.surrogates.jitted_gaussian_process import JittedGaussianProcess
+from queens.models.surrogates.multi_fidelity_conditional import (
+    MultiFidelityConditional,
+)
 from queens.parameters.parameters import Parameters
 from queens.schedulers.pool import Pool
 from queens.stochastic_optimizers import Adam
 from queens.utils.experimental_data_reader import ExperimentalDataReader
 from queens.utils.io import load_result
+from queens.utils.multi_fidelity import ManualFeatures, NoFeatures
 from queens.variational_distributions import MeanFieldNormal
 
 
@@ -64,16 +68,25 @@ def test_bmfia_smc_park(
     x2 = Uniform(lower_bound=0.01, upper_bound=0.99)
     parameters = Parameters(x1=x1, x2=x2)
 
-    # Setup iterator
+    lf_driver = Function(parameters=parameters, function="park91a_lofi_on_grid")
+    scheduler = Pool(experiment_name=global_settings.experiment_name)
+    lf_model = Simulation(scheduler=scheduler, driver=lf_driver)
+    hf_driver = Function(parameters=parameters, function="park91a_hifi_on_grid")
+    hf_model = Simulation(scheduler=scheduler, driver=hf_driver)
+    training_iterator = MultiFidelityTrainingData(
+        initial_design={"type": "random", "num_HF_eval": 20, "seed": 1},
+        lf_model=lf_model,
+        hf_model=hf_model,
+        parameters=parameters,
+        global_settings=global_settings,
+    )
+
+    # Setup VI iterator
     experimental_data_reader = ExperimentalDataReader(
         file_name_identifier="*.csv",
         csv_data_base_dir=experimental_data_path,
         output_label="y_obs",
         coordinate_labels=["x3", "x4"],
-    )
-    mf_interface = BmfiaInterface(
-        num_processors_multi_processing=2,
-        probabilistic_mapping_type="per_coordinate",
     )
     stochastic_optimizer = Adam(
         learning_rate=0.008,
@@ -91,29 +104,22 @@ def test_bmfia_smc_park(
         mean_function_type="identity_multi_fidelity",
         stochastic_optimizer=stochastic_optimizer,
     )
-    mcmc_proposal_distribution = Normal(mean=[0.0, 0.0], covariance=[[0.01, 0.0], [0.0, 0.01]])
-    lf_driver = Function(parameters=parameters, function="park91a_lofi_on_grid")
-    scheduler = Pool(experiment_name=global_settings.experiment_name)
-    lf_model = Simulation(scheduler=scheduler, driver=lf_driver)
-    hf_driver = Function(parameters=parameters, function="park91a_hifi_on_grid")
-    hf_model = Simulation(scheduler=scheduler, driver=hf_driver)
-    mf_subiterator = BMFIA(
-        features_config="man_features",
-        X_cols=[0],
-        num_features=1,
-        initial_design={"type": "random", "num_HF_eval": 20, "seed": 1},
-        lf_model=lf_model,
-        hf_model=hf_model,
-        parameters=parameters,
-        global_settings=global_settings,
+    feature_strategy = ManualFeatures(x_cols=[0])
+    mf_surrogate = MultiFidelityConditional(
+        feature_strategy=feature_strategy,
+        num_processors_multi_processing=2,
+        probabilistic_mapping_type="per_coordinate",
+        probabilistic_mapping=mf_approx,
+        training_iterator=training_iterator,
+        experimental_data_reader=experimental_data_reader,
     )
-    model = BMFGaussian(
+    mcmc_proposal_distribution = Normal(mean=[0.0, 0.0], covariance=[[0.01, 0.0], [0.0, 0.01]])
+    likelihood_model = MultiFidelityGaussian(
         noise_value=0.001,
         experimental_data_reader=experimental_data_reader,
-        mf_interface=mf_interface,
-        mf_approx=mf_approx,
+        multi_fidelity_surrogate=mf_surrogate,
         forward_model=lf_model,
-        mf_subiterator=mf_subiterator,
+        feature_strategy=feature_strategy,
     )
     iterator = SequentialMonteCarlo(
         seed=41,
@@ -123,7 +129,7 @@ def test_bmfia_smc_park(
         num_rejuvenation_steps=2,
         result_description={"write_results": True, "plot_results": False, "cov": True},
         mcmc_proposal_distribution=mcmc_proposal_distribution,
-        model=model,
+        model=likelihood_model,
         parameters=parameters,
         global_settings=global_settings,
     )
@@ -162,17 +168,26 @@ def test_bmfia_rpvi_gp_park(
     x2 = Uniform(lower_bound=0.01, upper_bound=0.99)
     parameters = Parameters(x1=x1, x2=x2)
 
-    # Setup iterator
+    lf_driver = Function(parameters=parameters, function="park91a_lofi_on_grid_with_gradients")
+    scheduler = Pool(experiment_name=global_settings.experiment_name)
+    lf_model = Simulation(scheduler=scheduler, driver=lf_driver)
+    hf_driver = Function(parameters=parameters, function="park91a_hifi_on_grid")
+    hf_model = Simulation(scheduler=scheduler, driver=hf_driver)
+    training_iterator = MultiFidelityTrainingData(
+        initial_design={"num_HF_eval": 50, "seed": 1, "type": "random"},
+        hf_model=hf_model,
+        lf_model=lf_model,
+        parameters=parameters,
+        global_settings=global_settings,
+    )
+
+    # Setup VI iterator
     variational_distribution = MeanFieldNormal(dimension=2)
     experimental_data_reader = ExperimentalDataReader(
         file_name_identifier="*.csv",
         csv_data_base_dir=experimental_data_path,
         output_label="y_obs",
         coordinate_labels=["x3", "x4"],
-    )
-    mf_interface = BmfiaInterface(
-        num_processors_multi_processing=2,
-        probabilistic_mapping_type="per_coordinate",
     )
     stochastic_optimizer = Adam(
         learning_rate=0.008,
@@ -188,28 +203,21 @@ def test_bmfia_rpvi_gp_park(
         mean_function_type="identity_multi_fidelity",
         stochastic_optimizer=stochastic_optimizer,
     )
-    lf_driver = Function(parameters=parameters, function="park91a_lofi_on_grid_with_gradients")
-    scheduler = Pool(experiment_name=global_settings.experiment_name)
-    lf_model = Simulation(scheduler=scheduler, driver=lf_driver)
-    hf_driver = Function(parameters=parameters, function="park91a_hifi_on_grid")
-    hf_model = Simulation(scheduler=scheduler, driver=hf_driver)
-    mf_subiterator = BMFIA(
-        features_config="man_features",
-        num_features=1,
-        X_cols=[0],
-        initial_design={"num_HF_eval": 50, "seed": 1, "type": "random"},
-        hf_model=hf_model,
-        lf_model=lf_model,
-        parameters=parameters,
-        global_settings=global_settings,
+    feature_strategy = ManualFeatures(x_cols=[0])
+    mf_surrogate = MultiFidelityConditional(
+        feature_strategy=feature_strategy,
+        num_processors_multi_processing=2,
+        probabilistic_mapping_type="per_coordinate",
+        probabilistic_mapping=mf_approx,
+        training_iterator=training_iterator,
+        experimental_data_reader=experimental_data_reader,
     )
-    model = BMFGaussian(
+    likelihood_model = MultiFidelityGaussian(
         noise_value=0.0001,
         experimental_data_reader=experimental_data_reader,
-        mf_interface=mf_interface,
-        mf_approx=mf_approx,
+        multi_fidelity_surrogate=mf_surrogate,
         forward_model=lf_model,
-        mf_subiterator=mf_subiterator,
+        feature_strategy=feature_strategy,
     )
     iterator = RPVI(
         max_feval=100,
@@ -231,7 +239,7 @@ def test_bmfia_rpvi_gp_park(
         variational_transformation=None,
         variational_distribution=variational_distribution,
         stochastic_optimizer=stochastic_optimizer,
-        model=model,
+        model=likelihood_model,
         parameters=parameters,
         global_settings=global_settings,
     )
@@ -270,13 +278,26 @@ def test_bmfia_rpvi_nn_park(
     x2 = Normal(covariance=0.09, mean=0.5)
     parameters = Parameters(x1=x1, x2=x2)
 
-    # Setup iterator
+    # Setup VI iterator
     variational_distribution = MeanFieldNormal(dimension=2)
     experimental_data_reader = ExperimentalDataReader(
         file_name_identifier="*.csv",
         csv_data_base_dir=experimental_data_path,
         output_label="y_obs",
         coordinate_labels=["x3", "x4"],
+    )
+    lf_driver = Function(parameters=parameters, function="park91a_lofi_on_grid_with_gradients")
+    scheduler = Pool(experiment_name=global_settings.experiment_name)
+    lf_model = Simulation(scheduler=scheduler, driver=lf_driver)
+    hf_driver = Function(parameters=parameters, function="park91a_hifi_on_grid")
+    hf_model = Simulation(scheduler=scheduler, driver=hf_driver)
+    feature_strategy = NoFeatures()
+    training_iterator = MultiFidelityTrainingData(
+        initial_design={"num_HF_eval": 50, "seed": 1, "type": "random"},
+        hf_model=hf_model,
+        lf_model=lf_model,
+        parameters=parameters,
+        global_settings=global_settings,
     )
     mf_approx = GaussianNeuralNetwork(
         activation_per_hidden_layer_lst=["elu", "elu"],
@@ -289,30 +310,20 @@ def test_bmfia_rpvi_nn_park(
         refinement_epochs_decay=0.7,
         verbosity_on=True,
     )
-    mf_interface = BmfiaInterface(
+    mf_surrogate = MultiFidelityConditional(
+        feature_strategy=feature_strategy,
         num_processors_multi_processing=1,
         probabilistic_mapping_type="per_time_step",
+        probabilistic_mapping=mf_approx,
+        training_iterator=training_iterator,
+        experimental_data_reader=experimental_data_reader,
     )
-    lf_driver = Function(parameters=parameters, function="park91a_lofi_on_grid_with_gradients")
-    scheduler = Pool(experiment_name=global_settings.experiment_name)
-    lf_model = Simulation(scheduler=scheduler, driver=lf_driver)
-    hf_driver = Function(parameters=parameters, function="park91a_hifi_on_grid")
-    hf_model = Simulation(scheduler=scheduler, driver=hf_driver)
-    mf_subiterator = BMFIA(
-        features_config="no_features",
-        initial_design={"num_HF_eval": 50, "seed": 1, "type": "random"},
-        hf_model=hf_model,
-        lf_model=lf_model,
-        parameters=parameters,
-        global_settings=global_settings,
-    )
-    model = BMFGaussian(
+    likelihood_model = MultiFidelityGaussian(
         noise_value=0.0001,
         experimental_data_reader=experimental_data_reader,
-        mf_approx=mf_approx,
-        mf_interface=mf_interface,
+        multi_fidelity_surrogate=mf_surrogate,
         forward_model=lf_model,
-        mf_subiterator=mf_subiterator,
+        feature_strategy=feature_strategy,
     )
     stochastic_optimizer = Adam(
         learning_rate=0.01,
@@ -340,7 +351,7 @@ def test_bmfia_rpvi_nn_park(
         variational_parameter_initialization="prior",
         variational_transformation=None,
         variational_distribution=variational_distribution,
-        model=model,
+        model=likelihood_model,
         stochastic_optimizer=stochastic_optimizer,
         parameters=parameters,
         global_settings=global_settings,

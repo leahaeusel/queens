@@ -112,6 +112,7 @@ class GaussianNeuralNetwork(Surrogate):
         dropout_rate=None,
         batch_norm=False,
         num_validation_data=None,
+        training_iterator=None,
     ):
         """Initialize an instance of the Gaussian Bayesian Neural Network.
 
@@ -138,11 +139,11 @@ class GaussianNeuralNetwork(Surrogate):
             mean_function_type (str): Mean function type of the Gaussian Neural Network
             batch_norm (bool): Whether to add batch normalization after each dense layer
             num_validation_data (int): Number of validation samples taken from training data
-
+            training_iterator (Iterator): Iterator for training data
         Returns:
             Instance of GaussianBayesianNeuralNetwork
         """
-        super().__init__()
+        super().__init__(training_iterator=training_iterator)
         # check mean function and subtract from y_train
         self.valid_mean_function_types = {
             "zero": (lambda x: 0, lambda x: 0),
@@ -281,6 +282,7 @@ class GaussianNeuralNetwork(Surrogate):
             if self.num_validation_data <= 0:
                 raise ValueError("num_validation_data must be positive when provided.")
             if self.num_validation_data >= x_train.shape[0]:
+                breakpoint()
                 raise ValueError("num_validation_data must be smaller than training set size.")
             self.x_train, x_val, self.y_train, y_val = train_test_split(
                 x_train, y_train, test_size=self.num_validation_data, random_state=42, shuffle=True
@@ -372,7 +374,11 @@ class GaussianNeuralNetwork(Surrogate):
             output (dict): Dictionary with posterior output statistics
         """
         x_test_transformed = self.scaler_x.transform(x_test)
-        yhat = self.nn_model(x_test_transformed)
+        try:
+            yhat = self.nn_model(x_test_transformed)
+        except:
+            breakpoint()
+            raise
         mean_pred = np.atleast_2d(yhat.mean()).T
         var_pred = np.atleast_2d(yhat.variance()).T
 
@@ -521,3 +527,5 @@ class GaussianNeuralNetwork(Surrogate):
         self.scaler_y = get_option(VALID_SCALER, self.data_scaling)()
         self.scaler_x.load(path / "scaler_x.npz")
         self.scaler_y.load(path / "scaler_y.npz")
+
+        self.is_trained = True

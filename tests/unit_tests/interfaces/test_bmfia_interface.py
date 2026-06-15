@@ -139,7 +139,6 @@ def test_init():
         bmfia_interface.update_mappings_method.__func__
         is BmfiaInterface.update_mappings_per_coordinate
     )
-    assert bmfia_interface.coord_labels is None
     assert bmfia_interface.time_vec is None
     assert bmfia_interface.coords_mat is None
 
@@ -165,7 +164,6 @@ def test_init():
         bmfia_interface.update_mappings_method.__func__
         is BmfiaInterface.update_mappings_per_time_step
     )
-    assert bmfia_interface.coord_labels is None
     assert bmfia_interface.time_vec is None
     assert bmfia_interface.coords_mat is None
 
@@ -200,7 +198,6 @@ def test__init__():
     assert interface.evaluate_method.__name__ == evaluate_method.__name__
     assert interface.evaluate_and_gradient_method.__name__ == evaluate_and_gradient_method.__name__
     assert interface.update_mappings_method.__name__ == update_mappings_method.__name__
-    assert interface.coord_labels is None
     assert interface.time_vec is None
     assert interface.coords_mat is None
 
@@ -210,18 +207,17 @@ def test_build_approximation(default_bmfia_interface, mocker, default_probabilis
     z_lf_train = np.zeros((2, 30))
     y_hf_train = np.zeros((2, 25))
     dummy_lst = [1, 2, 3]
-    coord_labels = ["x1", "x2"]
     time_vec = None
     coords_mat = np.array([[0, 1], [0, 1]])
     approx = "dummy_approx"
 
     mock_train_parallel = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface."
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface."
         "train_probabilistic_mappings_in_parallel",
         return_value=dummy_lst,
     )
     mock_optimize_state = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface."
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface."
         "set_optimized_state_of_probabilistic_mappings"
     )
 
@@ -230,14 +226,14 @@ def test_build_approximation(default_bmfia_interface, mocker, default_probabilis
     # Test with wrong input dimensions (2D Tensor) --> ValueError
     with pytest.raises(IndexError):
         default_bmfia_interface.build_approximation(
-            z_lf_train, y_hf_train, approx, coord_labels, time_vec, coords_mat
+            z_lf_train, y_hf_train, approx, time_vec, coords_mat
         )
 
     # Test with wrong input dimensions --> AssertionError
     z_lf_train = np.zeros((1, 2, 30))
     with pytest.raises(IndexError):
         default_bmfia_interface.build_approximation(
-            z_lf_train, y_hf_train, approx, coord_labels, time_vec, coords_mat
+            z_lf_train, y_hf_train, approx, time_vec, coords_mat
         )
 
     # Test with correct input dimensions for Z_LF_train and Y_HF_train
@@ -248,7 +244,7 @@ def test_build_approximation(default_bmfia_interface, mocker, default_probabilis
 
     num_coords = z_lf_train.T.shape[2]
     default_bmfia_interface.build_approximation(
-        z_lf_train, y_hf_train, approx, coord_labels, time_vec, coords_mat
+        z_lf_train, y_hf_train, approx, time_vec, coords_mat
     )
 
     # -- Actual assert / tests ---
@@ -311,11 +307,11 @@ def test_instantiate_per_time_step(mocker, dummy_reg_obj):
     approx = dummy_reg_obj
 
     mp_1 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
         return_value=(num_coords, t_size),
     )
     mp_2 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
         return_value=z_lf_array_out,
     )
 
@@ -347,7 +343,7 @@ def test_train_probabilistic_mappings_in_parallel(
     """Test the parallel training of the mappings."""
     Z_LF_train = np.zeros((1, 2, 3))
     default_bmfia_interface.probabilistic_mapping_obj_lst = default_probabilistic_obj_lst
-    mocker.patch("queens.models.likelihoods.bmf_gaussian.get_context", MyContext)
+    mocker.patch("queens.models.likelihoods.multi_fidelity_gaussian.get_context", MyContext)
 
     # test with valid configuration
     num_coords = Z_LF_train.T.shape[0]
@@ -521,15 +517,15 @@ def test_evaluate_per_time_step(default_probabilistic_obj_lst, mocker):
 
     # mock check coordinate compliance
     mp1 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
         return_value=(1, 2),
     )
     mp2 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
         return_value=z_lf_array,
     )
     mp3 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.iterate_over_time_steps",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.iterate_over_time_steps",
         return_value=(default_mean, default_variance, None, None),
     )
 
@@ -728,15 +724,15 @@ def test_evaluate_and_gradient_per_time_step(default_bmfia_interface, mocker):
 
     # mock check coordinate compliance
     mp1 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
         return_value=(1, 2),
     )
     mp2 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
         return_value=z_lf_array,
     )
     mp3 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.iterate_over_time_steps",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.iterate_over_time_steps",
         return_value=(default_mean, default_variance, default_grad_mean, default_grad_variance),
     )
 
@@ -866,11 +862,11 @@ def test_update_mappings_per_time_step(dummy_reg_obj, mocker):
     coords_mat = np.array([[0, 1], [0, 1]])
 
     mp_1 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.check_coordinates_return_dimensions",
         return_value=(num_coords, t_size),
     )
     mp_2 = mocker.patch(
-        "queens.models.likelihoods.bmf_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
+        "queens.models.likelihoods.multi_fidelity_gaussian.BmfiaInterface.prepare_z_lf_for_time_steps",
         return_value=z_lf_array_out,
     )
 

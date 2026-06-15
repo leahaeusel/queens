@@ -40,6 +40,7 @@ class Simulation(Model):
         self.scheduler = scheduler
         self.driver = driver
         self.scheduler.copy_files_to_experiment_dir(self.driver.files_to_copy)
+        self.samples = None
 
     def _evaluate(self, samples):
         """Evaluate model with current set of input samples.
@@ -50,6 +51,7 @@ class Simulation(Model):
         Returns:
             response (dict): Response of the underlying model at input samples
         """
+        self.samples = samples
         self.response = self.scheduler.evaluate(samples, driver=self.driver)
         return self.response
 
@@ -69,9 +71,26 @@ class Simulation(Model):
             gradient (np.array): Gradient w.r.t. current set of input samples
                                  :math:`\frac{\partial g}{\partial f} \frac{df}{dx}`
         """
+        if not np.array_equal(samples, self.samples):
+            raise ValueError(
+                "Gradient can only be evaluated at the same samples as the model evaluation. Please call evaluate() with the same samples before calling grad()."
+            )
         if self.response.get("gradient") is None:
             raise ValueError("Gradient information not available.")
+
+        response_gradient = self.response["gradient"]
+        if response_gradient.ndim == 2:
+            response_gradient = response_gradient[:, np.newaxis, :]
         # The shape of the returned gradient is weird
-        response_gradient = np.swapaxes(self.response["gradient"], 1, 2)
+        response_gradient = np.swapaxes(response_gradient, 1, 2)
+
         gradient = np.sum(upstream_gradient[:, :, np.newaxis] * response_gradient, axis=1)
         return gradient
+
+    def copy(self):
+        new = type(self).__new__(type(self))
+        Model.__init__(new)
+        new.scheduler = self.scheduler
+        new.driver = self.driver
+        new.samples = None
+        return new

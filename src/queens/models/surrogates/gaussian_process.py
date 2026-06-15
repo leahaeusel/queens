@@ -114,7 +114,7 @@ class GaussianProcess(Surrogate):
         """Setup surrogate model.
 
         Args:
-            x_train (np.array): training inputs
+            x_train (np.array): training inputs of shape (num_samples, num_input_dimensions) or (num)
             y_train (np.array): training outputs
         """
         if len(x_train.shape) == 1:

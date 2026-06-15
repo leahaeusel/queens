@@ -16,6 +16,8 @@
 
 import abc
 
+from queens.global_settings import GlobalSettings
+
 
 class Iterator(metaclass=abc.ABCMeta):
     """Base class for Iterator hierarchy.
@@ -31,7 +33,7 @@ class Iterator(metaclass=abc.ABCMeta):
                                           the output directory
     """
 
-    def __init__(self, model, parameters, global_settings):
+    def __init__(self, model, parameters, global_settings: GlobalSettings):
         """Initialize iterator object.
 
         Args:
