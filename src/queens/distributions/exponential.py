@@ -64,7 +64,7 @@ class Exponential(Continuous):
             x: Positions at which the CDF is evaluated
 
         Returns:
-            CDF at positions
+            CDF at positions test
         """
         x = x.reshape(-1, self.dimension)
         condition = (x >= 0).all(axis=1)
